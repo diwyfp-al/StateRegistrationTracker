@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -23,7 +22,6 @@
 <div id="map"></div>
 
 <h3>Active Clients by State</h3>
-
 <div style="margin-bottom: 10px;">
   <label>Status:
     <select id="status-filter">
@@ -55,13 +53,6 @@
 <script src="https://unpkg.com/topojson-client@3"></script>
 
 <script>
-  const colorMap = {
-    "Registered": "green",
-    "Planned": "gold",
-    "Avoid": "red",
-    "De Minimis OK": "lightgray"
-  };
-
   const fipsToAbbr = {
     "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT",
     "10": "DE", "11": "DC", "12": "FL", "13": "GA", "15": "HI", "16": "ID", "17": "IL",
@@ -75,6 +66,15 @@
 
   let tableData = [];
   let stateData = {};
+
+  function getColor(status, clients) {
+    if (status === "Registered") return "green";
+    if (status === "Avoid") return "black";
+    if (status === "Planned" && clients < 5) return "#B8860B"; // dark yellow
+    if (clients > 3) return "red";
+    if (clients >= 1 && clients <= 3) return "yellow";
+    return "lightgray";
+  }
 
   fetch("https://script.google.com/macros/s/AKfycbwI1Ozw4f-MOmGiPMPme66JNh53kjVrVCnNf2zpNgNLX90DCsd8PYt0sz8vocFWEN3E-A/exec")
     .then(response => response.json())
@@ -100,7 +100,7 @@
           const fips = f.id.toString().padStart(2, '0');
           const abbr = fipsToAbbr[fips];
           const info = stateData[abbr] || { clients: 0, status: "De Minimis OK" };
-          const fillColor = colorMap[info.status] || "gray";
+          const fillColor = getColor(info.status, info.clients);
 
           const geojson = L.geoJSON(f, {
             style: {
@@ -133,16 +133,9 @@
     th.addEventListener("click", () => {
       const col = th.dataset.col;
       const sortedAsc = th.classList.contains("sorted-asc");
-
       document.querySelectorAll("th").forEach(th => th.classList.remove("sorted-asc", "sorted-desc"));
       th.classList.add(sortedAsc ? "sorted-desc" : "sorted-asc");
-
-      tableData.sort((a, b) => {
-        if (a[col] < b[col]) return sortedAsc ? 1 : -1;
-        if (a[col] > b[col]) return sortedAsc ? -1 : 1;
-        return 0;
-      });
-
+      tableData.sort((a, b) => (a[col] < b[col] ? (sortedAsc ? 1 : -1) : (a[col] > b[col] ? (sortedAsc ? -1 : 1) : 0)));
       applyFilters();
     });
   });
@@ -153,13 +146,7 @@
   function applyFilters() {
     const status = document.getElementById("status-filter").value;
     const minClients = parseInt(document.getElementById("min-clients").value || "0");
-
-    const filtered = tableData.filter(row => {
-      const matchStatus = status ? row.status === status : true;
-      const matchCount = row.clients >= minClients;
-      return matchStatus && matchCount;
-    });
-
+    const filtered = tableData.filter(row => (!status || row.status === status) && row.clients >= minClients);
     renderTable(filtered);
   }
 
@@ -174,9 +161,10 @@
     div.innerHTML = `
       <strong>Legend</strong><br>
       <span style="background:green;color:white;padding:2px 6px;">&nbsp;</span> Registered<br>
-      <span style="background:gold;padding:2px 6px;">&nbsp;</span> Planned<br>
-      <span style="background:red;color:white;padding:2px 6px;">&nbsp;</span> Avoid<br>
-      <span style="background:lightgray;padding:2px 6px;">&nbsp;</span> De Minimis OK
+      <span style="background:#B8860B;color:white;padding:2px 6px;">&nbsp;</span> Planned (<5 clients)<br>
+      <span style="background:yellow;padding:2px 6px;">&nbsp;</span> Not registered (1–3 clients)<br>
+      <span style="background:red;color:white;padding:2px 6px;">&nbsp;</span> Not registered (>3 clients)<br>
+      <span style="background:black;color:white;padding:2px 6px;">&nbsp;</span> Avoid
     `;
     return div;
   };
@@ -185,4 +173,3 @@
 
 </body>
 </html>
-
